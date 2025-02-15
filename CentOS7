@@ -228,3 +228,164 @@ sudo yum repolist
 This will show only the repositories that are enabled (e.g., your local repository) and verify that online repositories are disabled.
 
 By following these steps, you’ll have a system that only uses your local YUM repository and doesn't access online repositories.
+
+==============================================================================================================================
+
+with FTP anonymous:
+=================
+
+
+To set up a local YUM repository accessible via FTP with anonymous access, you need to follow these general steps:
+
+    Set up an FTP server (e.g., vsftpd).
+    Make your local YUM repository accessible via FTP.
+    Configure your YUM client to access the repository via FTP using the ftp:// URL.
+
+Let’s go through the process in more detail.
+Step 1: Install and Configure FTP Server (vsftpd)
+
+    Install vsftpd:
+
+    First, you need to install the FTP server. On CentOS/RHEL-based systems, you can use the following command:
+
+sudo yum install vsftpd
+
+Start and Enable the FTP Server:
+
+Start the FTP service and ensure it starts on boot:
+
+sudo systemctl start vsftpd
+sudo systemctl enable vsftpd
+
+Configure FTP for Anonymous Access:
+
+Edit the vsftpd configuration file:
+
+sudo nano /etc/vsftpd/vsftpd.conf
+
+Ensure that the following settings are configured:
+
+anonymous_enable=YES   # Enable anonymous login
+anon_root=/var/ftp/pub # Set the root directory for anonymous users
+no_anon_password=YES   # Disable password for anonymous login
+anon_umask=022         # Set file permissions for uploaded files
+
+This will allow anonymous users to log in and access the /var/ftp/pub directory.
+
+Create the FTP Directory:
+
+Create the directory for your FTP server to serve the YUM repository:
+
+sudo mkdir -p /var/ftp/pub/repo
+
+Set Permissions:
+
+Set the correct permissions so that the FTP server can serve the repository:
+
+sudo chown -R ftp:ftp /var/ftp/pub/repo
+sudo chmod -R 755 /var/ftp/pub/repo
+
+Restart vsftpd to Apply Changes:
+
+Restart the FTP service to apply the changes:
+
+    sudo systemctl restart vsftpd
+
+Step 2: Set Up the Local YUM Repository
+
+    Create the Repository Directory:
+
+    Assuming you've already collected the RPM packages, you need to copy them to the /var/ftp/pub/repo directory. For example:
+
+sudo mkdir -p /var/ftp/pub/repo/
+sudo cp /path/to/rpms/*.rpm /var/ftp/pub/repo/
+
+Generate the Repository Metadata:
+
+If you haven’t done so already, you can generate the repository metadata using createrepo:
+
+    sudo createrepo /var/ftp/pub/repo/
+
+    Verify the Repository Files:
+
+    Ensure that the repository metadata (i.e., the repodata/ directory) is created correctly in /var/ftp/pub/repo/.
+
+Step 3: Configure the YUM Client to Use FTP Repository
+
+Now, configure the YUM client on the machine that will access the repository via FTP.
+
+    Create a YUM Repository Configuration File:
+
+    On the client machine, create a .repo file in /etc/yum.repos.d/. For example, create local-ftp.repo:
+
+sudo nano /etc/yum.repos.d/local-ftp.repo
+
+Configure the Repository to Use FTP:
+
+Add the following content to point to your FTP server (replace ftp://<ftp-server-ip-or-domain> with the actual address of your FTP server):
+
+[local-ftp]
+name=Local YUM Repository over FTP
+baseurl=ftp://<ftp-server-ip-or-domain>/repo/
+enabled=1
+gpgcheck=0
+
+For example, if your FTP server is running on IP 192.168.1.100, the configuration would look like this:
+
+[local-ftp]
+name=Local YUM Repository over FTP
+baseurl=ftp://192.168.1.100/repo/
+enabled=1
+gpgcheck=0
+
+    baseurl=ftp://192.168.1.100/repo/ specifies the FTP location of your repository.
+    enabled=1 enables the repository.
+    gpgcheck=0 disables GPG checking (you can enable it if you're using signed packages).
+
+Clean YUM Cache and Refresh the Repository List:
+
+On the client machine, clean the YUM cache and refresh the repository list:
+
+    sudo yum clean all
+    sudo yum repolist
+
+    This should show your FTP-based repository in the list.
+
+Step 4: Test the Repository
+
+To test if the YUM client can access the repository over FTP, try installing a package:
+
+sudo yum install <package-name>
+
+YUM should fetch the package from the local FTP server.
+Optional: Secure FTP with SSL/TLS (FTPS)
+
+If you want to secure the FTP connection (FTPS), you can configure vsftpd for SSL/TLS encryption. You would need to create or obtain SSL certificates and configure vsftpd.conf to use them. Here's a basic setup:
+
+    Generate SSL Certificates (if not already available):
+
+sudo mkdir /etc/ssl/private
+sudo openssl req -newkey rsa:2048 -nodes -keyout /etc/ssl/private/vsftpd.key -x509 -out /etc/ssl/certs/vsftpd.crt
+
+Enable SSL/TLS in vsftpd.conf:
+
+Edit /etc/vsftpd/vsftpd.conf and add the following:
+
+ssl_enable=YES
+rsa_cert_file=/etc/ssl/certs/vsftpd.crt
+rsa_private_key_file=/etc/ssl/private/vsftpd.key
+
+Restart vsftpd:
+
+    sudo systemctl restart vsftpd
+
+After these steps, FTP communication will be encrypted with SSL/TLS.
+Summary
+
+By following these steps, you've:
+
+    Set up an FTP server with anonymous access.
+    Created a YUM repository and made it accessible over FTP.
+    Configured the YUM client to access the repository using the FTP URL (ftp://).
+
+This setup enables you to serve a local YUM repository via FTP and allows clients to install packages from it without accessing online repositories.
